@@ -72,11 +72,11 @@ namespace Astc
 				{
 					DecodeBlock(input, inputOffset, blockWidth, blockHeight, blockBuffer);
 					int clen = s < blockCountWidth - 1 ? blockWidth4 : clenLast4;
-					for (int i = 0, y = height - t * blockHeight - 1; i < blockHeight && y >= 0; i++, y--)
-					{
-						Buffer.BlockCopy(blockBuffer, i * blockWidth4, output, y * width4 + s * blockWidth4, clen);
-					}
-				}
+                    for (int i = 0, y = t * blockHeight; i < blockHeight && y < height; i++, y++) // 更改了y的初始化和增量
+                    {
+                        Buffer.BlockCopy(blockBuffer, i * blockWidth4, output, y * width4 + s * blockWidth4, clen);
+                    }
+                }
 			}
 		}
 
@@ -858,12 +858,32 @@ namespace Astc
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static int GetBits(byte[] input, int ioff, int bit, int len)
-		{
-			return (BitConverter.ToInt32(input, ioff + bit / 8) >> (bit % 8)) & ((1 << len) - 1);
-		}
+        private static int GetBits(byte[] input, int ioff, int bit, int len)
+        {
+            // 计算字节偏移和该字节内的位偏移
+            int byteOffset = ioff + bit / 8;
+            int bitInByte = bit % 8;
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+            // 确保我们不会读取超出数组边界。
+            // 最多读取 4 个字节来形成一个 int，但不要超出 input.Length
+            int value = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                if (byteOffset + i < input.Length)
+                {
+                    value |= input[byteOffset + i] << (i * 8);
+                }
+                else
+                {
+                    // 如果我们在数组末尾且没有足够的字节，
+                    // 剩余的位实际上是零。
+                    break;
+                }
+            }
+            return (value >> bitInByte) & ((1 << len) - 1);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static ulong GetBits64(byte[] input, int ioff, int bit, int len)
 		{
 			ulong mask = len == 64 ? 0xffffffffffffffff : (1UL << len) - 1;
